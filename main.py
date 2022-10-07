@@ -130,7 +130,7 @@ async def time_step(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ORDER.PROMO)
 async def promo_step(message: types.Message, state: FSMContext):
     await state.update_data(PROMO=message.text)
-    # рассылка сообщений await mybot.bot.send_message(627976213, message.text)
+    # рассылка сообщений await mybot.bot.send_message(627976213, текст о далн инструк)
     await message.answer('Ожидайте заказа сотрудников')
     await ORDER.WAIT.set()
 
