@@ -1,7 +1,10 @@
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.dispatcher import FSMContext
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.dispatcher.filters import state
+from aiogram.dispatcher.filters.state import StatesGroup, State
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
+
 from secrets import token_hex
 
 from classes import Token, Join
@@ -10,7 +13,8 @@ from token_get import token, user, password, db_name, host, port  # Токен �
 import psycopg2
 
 bot = Bot(token)
-dp = Dispatcher(bot, storage=MemoryStorage())
+storage = MemoryStorage()
+dp = Dispatcher(bot, storage=storage)
 
 
 @dp.message_handler(commands='start')  # Примерно
@@ -80,6 +84,61 @@ async def quit_team(message: types.Message):
         await message.answer('Вы вышли из комнаты')
     else:
         await message.answer("У вас нету комнат")
+
+
+class ORDER(StatesGroup):
+    RESTORAN = State()
+    PAY_INFO = State()
+    TIME = State()
+    PROMO = State()
+    WAIT = State()
+
+
+@dp.message_handler(commands=['собрать_заказ'])
+async def order(message: types.Message):
+    # проверка на человека в компании
+    n = [] # список ресторанов (название)
+    button_restoranov = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
+        *[KeyboardButton(i) for i in n])
+    await message.answer('Для заказа следуйте дальнейшей инструкцией.')
+    await message.answer('Выберете ресторан', reply_markup=button_restoranov)
+    await ORDER.RESTORAN.set()
+
+
+@dp.message_handler(state=ORDER.RESTORAN)
+async def rest_step(message: types.Message, state: FSMContext):
+    await state.update_data(RESTORAN=message.text)
+    await message.answer('Напишите реквизиты для сбора денег')  # два варианта: контакт, номер карты.
+    await ORDER.PAY_INFO.set()
+
+
+@dp.message_handler(state=ORDER.PAY_INFO)
+async def pay_info_step(message: types.Message, state: FSMContext):
+    await state.update_data(PAY_INFO=message.text)
+    await message.answer('Напишите ограничение по времени. Например: 5 мин')
+    await ORDER.TIME.set()
+
+
+@dp.message_handler(state=ORDER.TIME)
+async def time_step(message: types.Message, state: FSMContext):
+    # проверка коррект времени
+    await state.update_data(TIME=message.text)
+    await message.answer('Если у вас есть промокод на скидку напишите.')
+    await ORDER.PROMO.set()
+
+
+@dp.message_handler(state=ORDER.PROMO)
+async def promo_step(message: types.Message, state: FSMContext):
+    await state.update_data(PROMO=message.text)
+    # рассылка сообщений await mybot.bot.send_message(627976213, message.text)
+    await message.answer('Ожидайте заказа сотрудников')
+    await ORDER.WAIT.set()
+
+
+@dp.message_handler(state=ORDER.WAIT)
+async def wait_step(message: types.Message, state: FSMContext):
+    # думаю завершать не нужно стейт, пусть инициатор ждет оплаты и выбора всех пользователей
+    await state.finish()
 
 
 if __name__ == '__main__':
