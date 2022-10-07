@@ -138,6 +138,7 @@ async def promo_step(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ORDER.WAIT)
 async def wait_step(message: types.Message, state: FSMContext):
     # думаю завершать не нужно стейт, пусть инициатор ждет оплаты и выбора всех пользователей
+    # текст для сообщений напишу позже
     await state.finish()
 
 

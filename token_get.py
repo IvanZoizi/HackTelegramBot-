@@ -1,7 +1,0 @@
-token = '5702954298:AAFuF85Mr0Q_EMqNrtoy6RRMRthBt9sVft0'
-api_org = '819dd95d-4759-4533-92fb-c29c4e643fb0'
-db_name = 'dubna'
-user = ''
-password = ''
-host = '127.0.0.1'
-port = '8080'
