@@ -7,3 +7,11 @@ class Token(StatesGroup):
 
 class Join(StatesGroup):
     start = State()
+
+
+class ORDER(StatesGroup):
+    RESTORAN = State()
+    PAY_INFO = State()
+    TIME = State()
+    PROMO = State()
+    WAIT = State()

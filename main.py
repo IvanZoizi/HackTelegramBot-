@@ -1,13 +1,11 @@
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.dispatcher import FSMContext
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from aiogram.dispatcher.filters import state
-from aiogram.dispatcher.filters.state import StatesGroup, State
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
 from secrets import token_hex
 
-from classes import Token, Join
+from classes import Token, Join, ORDER
 
 from token_get import token, user, password, db_name, host, port  # Токен бота
 import psycopg2
@@ -33,16 +31,15 @@ async def create_token_start(message: types.Message):
 async def create_token_password(message: types.Message, state: FSMContext):
     try:
         token = token_hex(16)
-        print(1)
         with open('tokens.txt', 'r') as file:
             text = file.readlines()
         with open('tokens.txt', 'w') as file:
-            file.write(f"{token} \t {message.text}")
-        print(1)
+            text.append(f"{token} \t {message.text}")
+            file.write('\n'.join(text))
         cur = con.cursor()
-        cur.execute("""INSERT INTO userinfo (name) VALUES (%s)""", (message.from_user.username,))
+        cur.execute("""INSERT INTO userinfo (name, id_chat) VALUES (%s, %s)""", (message.from_user.username,
+                                                                                 str(message.chat.id)))
         con.commit()
-        print(1)
         await message.answer(f"Вы успешно создали комнату. Токен - {token}")
         await state.finish()
     except Exception:
@@ -62,8 +59,8 @@ async def join_token_start(message: types.Message, state: FSMContext):
         with open("tokens.txt", 'r') as file:
             text = file.readlines()
         if any([lambda x: x in text, message.text]):
-            print(1)
-            cur.execute("""INSERT INTO userinfo (name) VALUES (%s)""", (message.from_user.username,))
+            cur.execute("""INSERT INTO userinfo (name, id_chat) VALUES (%s, %s)""", (message.from_user.username,
+                                                                                     str(message.chat.id)))
             con.commit()
             await message.answer("Успешно")
         else:
@@ -86,23 +83,20 @@ async def quit_team(message: types.Message):
         await message.answer("У вас нету комнат")
 
 
-class ORDER(StatesGroup):
-    RESTORAN = State()
-    PAY_INFO = State()
-    TIME = State()
-    PROMO = State()
-    WAIT = State()
-
-
 @dp.message_handler(commands=['собрать_заказ'])
-async def order(message: types.Message):
-    # проверка на человека в компании
-    n = [] # список ресторанов (название)
-    button_restoranov = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
-        *[KeyboardButton(i) for i in n])
-    await message.answer('Для заказа следуйте дальнейшей инструкцией.')
-    await message.answer('Выберете ресторан', reply_markup=button_restoranov)
-    await ORDER.RESTORAN.set()
+async def order(message: types.Message, state: FSMContext):
+    cur.execute("""SELECT * FROM userinfo WHERE name = %s""", (message.from_user.username,))
+    user = cur.fetchone()
+    if user:
+        n = [] # список ресторанов (название)
+        button_restoranov = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
+            *[KeyboardButton(i) for i in n])
+        await message.answer('Для заказа следуйте дальнейшей инструкцией.')
+        await message.answer('Выберете ресторан', reply_markup=button_restoranov)
+        await ORDER.RESTORAN.set()
+    else:
+        await message.answer("Вы не подключены к компании")
+        await state.finish()
 
 
 @dp.message_handler(state=ORDER.RESTORAN)
@@ -129,7 +123,12 @@ async def time_step(message: types.Message, state: FSMContext):
 
 @dp.message_handler(state=ORDER.PROMO)
 async def promo_step(message: types.Message, state: FSMContext):
+    cur.execute("SELECT (id_chat) FROM userinfo")
+    names = cur.fetchall()
     await state.update_data(PROMO=message.text)
+    for id in names:
+        if id != message.from_user.id:
+            await bot.send_message(id[0], "Заказ")
     # рассылка сообщений await mybot.bot.send_message(627976213, текст о далн инструк)
     await message.answer('Ожидайте заказа сотрудников')
     await ORDER.WAIT.set()
