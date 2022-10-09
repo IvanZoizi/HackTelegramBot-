@@ -22,3 +22,24 @@ class Dodo(StatesGroup):
     add = State()
     back = State()
     result = State()
+
+
+class Fank(StatesGroup):
+    menu = State()
+    add = State()
+    back = State()
+    result = State()
+
+
+class Limonad(StatesGroup):
+    menu = State()
+    add = State()
+    back = State()
+    result = State()
+
+
+class Iberia(StatesGroup):
+    menu = State()
+    add = State()
+    back = State()
+    result = State()
