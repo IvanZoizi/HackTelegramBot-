@@ -309,11 +309,9 @@ async def add_menu(message: types.Message, state: FSMContext):
     data = await state.get_data()
     menu = data['menu']
     foods = {}
-    print(menu)
     for food_price in menu:
         foods[food_price.split(' - ')[0].strip().capitalize()] = float(food_price.split(' - ')[1].strip())
     # Проверка
-    print(foods)
     message_user = message.text.split(',')
     if not all([food.lstrip().rstrip().split('/')[0].capitalize() in list(foods) for food in message_user]):
         await message.answer("Неверный формат ввода")
@@ -347,6 +345,11 @@ async def pizza_result(message: types.Message, state: FSMContext):
             await message.answer(f"Заказ оформлен. Пользователь {user_name} ждет отплаты")
             await bot.send_message(chat_id, f"Заказ оформил {message.from_user.username}, на сумму {data['price']}.\n"
                                             f"Сам заказ - {','.join(data['food'])}")
+            csv = pd.read_csv("order.csv")
+            dic = {'name': message.from_user.username, 'order': ','.join(data['food']), 'price': data['price'], 'restoran': data['RESTORAN']}
+            csv = pd.concat([csv, pd.DataFrame(dic, index=[0])], ignore_index=True, axis=0)
+            csv = csv[['name', 'order', 'price', 'restoran']]
+            csv.to_csv('order.csv')
         else:
             pass
             # Допили пж)))
@@ -390,6 +393,11 @@ async def fank_result(message: types.Message, state: FSMContext):
             await message.answer(f"Заказ оформлен. Пользователь {user_name} ждет отплаты")
             await bot.send_message(chat_id, f"Заказ оформил {message.from_user.username}, на сумму {data['price']}.\n"
                                             f"Сам заказ - {','.join(data['food'])}")
+            csv = pd.read_csv("order.csv")
+            dic = {'name': message.from_user.username, 'order': ','.join(data['food']), 'price': data['price'], 'restoran': data['RESTORAN']}
+            csv = pd.concat([csv, pd.DataFrame(dic, index=[0])], ignore_index=True, axis=0)
+            csv = csv[['name', 'order', 'price', 'restoran']]
+            csv.to_csv('order.csv')
         else:
             pass
             # Допили пж)))
@@ -480,6 +488,11 @@ async def limonad_result(message: types.Message, state: FSMContext):
             await message.answer(f"Заказ оформлен. Пользователь {user_name} ждет отплаты")
             await bot.send_message(chat_id, f"Заказ оформил {message.from_user.username}, на сумму {data['price']}.\n"
                                             f"Сам заказ - {','.join(data['food'])}")
+            csv = pd.read_csv("order.csv")
+            dic = {'name': message.from_user.username, 'order': ','.join(data['food']), 'price': data['price'], 'restoran': data['RESTORAN']}
+            csv = pd.concat([csv, pd.DataFrame(dic, index=[0])], ignore_index=True, axis=0)
+            csv = csv[['name', 'order', 'price', 'restoran']]
+            csv.to_csv('order.csv')
         else:
             pass
             # Допили пж)))
@@ -570,6 +583,12 @@ async def iberia_result(message: types.Message, state: FSMContext):
             await message.answer(f"Заказ оформлен. Пользователь {user_name} ждет отплаты")
             await bot.send_message(chat_id, f"Заказ оформил {message.from_user.username}, на сумму {data['price']}.\n"
                                             f"Сам заказ - {','.join(data['food'])}")
+            # Аналитика
+            csv = pd.read_csv("order.csv")
+            dic = {'name': message.from_user.username, 'order': ','.join(data['food']), 'price': data['price'], 'restoran': data['RESTORAN']}
+            csv = pd.concat([csv, pd.DataFrame(dic, index=[0])], ignore_index=True, axis=0)
+            csv = csv[['name', 'order', 'price', 'restoran']]
+            csv.to_csv('order.csv')
         else:
             pass
             # Допили пж)))
