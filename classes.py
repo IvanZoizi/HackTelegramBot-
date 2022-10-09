@@ -15,3 +15,10 @@ class ORDER(StatesGroup):
     TIME = State()
     PROMO = State()
     WAIT = State()
+
+
+class Dodo(StatesGroup):
+    menu = State()
+    add = State()
+    back = State()
+    result = State()
