@@ -42,8 +42,10 @@ async def create_token_password(message: types.Message, state: FSMContext):
             text.append(f"{token} \t {message.text}")
             file.write('\n'.join(text))
         cur = con.cursor()
-        cur.execute("""INSERT INTO userinfo (name, id_chat) VALUES (%s, %s)""", (message.from_user.username,
-                                                                                 str(message.chat.id)))
+        cur.execute("""INSERT INTO userinfo (name, id_chat, id_user) VALUES (%s, %s, %s)""",
+                    (message.from_user.username,
+                     str(message.chat.id),
+                     str(message.from_user.id)))
         con.commit()
         await message.answer(f"Вы успешно создали комнату. Токен - {token}")
         await state.finish()
@@ -64,8 +66,9 @@ async def join_token_start(message: types.Message, state: FSMContext):
         with open("tokens.txt", 'r') as file:
             text = file.readlines()
         if any([lambda x: x in text, message.text]):
-            cur.execute("""INSERT INTO userinfo (name, id_chat) VALUES (%s, %s)""", (message.from_user.username,
-                                                                                     str(message.chat.id)))
+            cur.execute("""INSERT INTO userinfo (name, id_chat, id_user) VALUES (%s, %s, %s)""", (message.from_user.username,
+                                                                                     str(message.chat.id),
+                                                                                                  str(message.from_user.id)))
             con.commit()
             await message.answer("Успешно")
         else:
@@ -177,16 +180,18 @@ async def promo_step(message: types.Message, state: FSMContext):
     buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
         *[KeyboardButton(i) for i in ['Да', 'Нет']])
     for id in names:
-        # if id != message.chat.id:
-        await bot.send_message(id[0], f"Заказ. Рестаран - {data['RESTORAN']}. Время - {data['TIME']}."
+        await bot.send_message(int(id[0]), f"Заказ. Ресторан - {data['RESTORAN']}. Время - {data['TIME']}."
                                       f"Принять заказ?", reply_markup=buttons)
+        state_user = dp.current_state(chat=int(id[0]), user=int(id[0]))
+        await state_user.set_state(ORDER.WAIT)
+        await state_user.update_data(RESTORAN=data['RESTORAN'], PROMO=data['PROMO'], TIME=data['TIME'],
+                                     PAY_INFO=data['PAY_INFO'], user_name=data['user_name'],
+                                     chat_id=data['chat_id'])
     # рассылка сообщений await mybot.bot.send_message(627976213, текст о далн инструк)
     cur.execute("""SELECT (id) FROM userinfo WHERE name = %s""", (message.from_user.username,))
     user = cur.fetchone()
     cur.execute("""INSERT INTO order_user (user_id) VALUES (%s)""", (user,))
     con.commit()
-    # добавление заказа в БД
-    await ORDER.WAIT.set()
 
 
 @dp.message_handler(state=ORDER.WAIT)
@@ -279,9 +284,12 @@ async def pizza_menu(message: types.Message, state: FSMContext):
             f"{name['name']} - {'-'.join(sorted(list(set([str(name['shoppingItems'][i]['price']) for i in range(len(name['shoppingItems']))]))))}"
             for name in ans['items'] if name['category'] == cat]
     else:
+        print([sorted(list(set([str(name['shoppingItems'][i]['price']) for i in range(len(name['shoppingItems']))])))
+               for name in ans['items'] if name['category'] == cat])
         food = [
-            f"{name['name']} - {'-'.join([sorted(list(set([str(name['shoppingItems'][i]['price']) for i in range(len(name['shoppingItems']))])))[1]])}"
+            f"{name['name']} - {sorted(list(set([str(name['shoppingItems'][i]['price']) for i in range(len(name['shoppingItems']))])))[0] if len(sorted(list(set([str(name['shoppingItems'][i]['price']) for i in range(len(name['shoppingItems']))])))) == 1 else sorted(list(set([str(name['shoppingItems'][i]['price']) for i in range(len(name['shoppingItems']))])))[1]}"
             for name in ans['items'] if name['category'] == cat]
+        print(food)
     food.insert(0, "Название. Цена")
     await state.update_data(categorial=cat, menu=food[1:])
     await message.answer('\n'.join(food))
@@ -301,14 +309,16 @@ async def add_menu(message: types.Message, state: FSMContext):
     data = await state.get_data()
     menu = data['menu']
     foods = {}
+    print(menu)
     for food_price in menu:
-        foods[food_price.split(' - ')[0].capitalize()] = float(food_price.split(' - ')[1])
+        foods[food_price.split(' - ')[0].strip().capitalize()] = float(food_price.split(' - ')[1].strip())
     # Проверка
+    print(foods)
     message_user = message.text.split(',')
     if not all([food.lstrip().rstrip().split('/')[0].capitalize() in list(foods) for food in message_user]):
         await message.answer("Неверный формат ввода")
     else:
-        food = [food.lstrip().rstrip().split('/')[0].capitalize() for food in message_user]
+        food = [food.lstrip().rstrip().capitalize() for food in message_user]
         price = 0
         # Подведения чека
         for order in message_user:
@@ -415,7 +425,7 @@ async def fank_add(message: types.Message, state: FSMContext):
     menu = data['menu']
     foods = {}
     for food_price in menu:
-        foods[food_price.split(' - ')[0].capitalize()] = float(food_price.split(' - ')[1])
+        foods[food_price.split(' - ')[0].strip().capitalize()] = float(food_price.split(' - ')[1].strip())
     # Проверка
     message_user = message.text.split(',')
     if not all([food.lstrip().rstrip().split('/')[0].capitalize() in list(foods) for food in message_user]):
@@ -505,7 +515,7 @@ async def limonad_add(message: types.Message, state: FSMContext):
     menu = data['menu']
     foods = {}
     for food_price in menu:
-        foods[food_price.split(' - ')[0].capitalize()] = float(food_price.split(' - ')[1])
+        foods[food_price.split(' - ')[0].strip().capitalize()] = float(food_price.split(' - ')[1].strip())
     # Проверка
     message_user = message.text.split(',')
     if not all([food.lstrip().rstrip().split('/')[0].capitalize() in list(foods) for food in message_user]):
@@ -595,8 +605,7 @@ async def iberia_add(message: types.Message, state: FSMContext):
     menu = data['menu']
     foods = {}
     for food_price in menu:
-        print(food_price)
-        foods[food_price.split(' - ')[0].capitalize()] = float(food_price.split(' - ')[1])
+        foods[food_price.split(' - ')[0].strip().capitalize()] = float(food_price.split(' - ')[1].strip())
     # Проверка
     message_user = message.text.split(',')
     if not all([food.lstrip().rstrip().split('/')[0].capitalize() in list(foods) for food in message_user]):
