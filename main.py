@@ -157,7 +157,7 @@ async def time_step(message: types.Message, state: FSMContext):
             *[KeyboardButton(i) for i in ['10 миинут', '30 минут', '1 час', '1 час 30 минут', '3 часа']])
         await message.answer('Выберите ограничения ожидания заказа по времени', reply_markup=buttons)
     else:
-        dic = {'10 минут': 5, '30 минут': 30 * 60, '1 час': 3600, '1 час 30 минут': 3600 + 30 * 60, '3 часа': 3 * 3600}
+        dic = {'10 минут': 60 * 10, '30 минут': 30 * 60, '1 час': 3600, '1 час 30 минут': 3600 + 30 * 60, '3 часа': 3 * 3600}
         await state.update_data(TIME=message.text)
         cur.execute("SELECT (id_chat) FROM userinfo")
         names = cur.fetchall()
