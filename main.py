@@ -144,6 +144,10 @@ async def rest_step(message: types.Message, state: FSMContext):
 
 @dp.message_handler(state=ORDER.PAY_INFO)
 async def pay_info_step(message: types.Message, state: FSMContext):
+    try:
+        pass
+    except ValueError:
+        pass
     await state.update_data(PAY_INFO=message.text)
     await message.answer('Выберите ограничения ожидания заказа по времени')
     await ORDER.TIME.set()
@@ -153,23 +157,21 @@ async def pay_info_step(message: types.Message, state: FSMContext):
 async def time_step(message: types.Message, state: FSMContext):
     # проверка коррект времени
     await state.update_data(TIME=message.text)
-    await message.answer('Если у вас есть промокод на скидку напишите.')
-    await ORDER.PROMO.set()
-
-
-@dp.message_handler(state=ORDER.PROMO)
-async def promo_step(message: types.Message, state: FSMContext):
     cur.execute("SELECT (id_chat) FROM userinfo")
     names = cur.fetchall()
-    await state.update_data(PROMO=message.text)
     data = await state.get_data()
     await message.answer('Ожидайте заказа сотрудников')
     buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
         *[KeyboardButton(i) for i in ['Да', 'Нет']])
     for id in names:
-        # if id != message.chat.id:
+        print(id)
         await bot.send_message(id[0], f"Заказ. Ресторан - {data['RESTORAN']}. Время - {data['TIME']}."
                                       f"Принять заказ?", reply_markup=buttons)
+        state_user = dp.current_state(chat=int(id[0]), user=int(id[0]))
+        await state_user.set_state(ORDER.WAIT)
+        await state_user.update_data(RESTORAN=data['RESTORAN'], TIME=data['TIME'],
+                                     PAY_INFO=data['PAY_INFO'], user_name=data['user_name'],
+                                     chat_id=data['chat_id'])
     cur.execute("""SELECT (id) FROM userinfo WHERE name = %s""", (message.from_user.username,))
     user = cur.fetchone()
     cur.execute("""INSERT INTO order_user (user_id) VALUES (%s)""", (user,))
@@ -263,7 +265,7 @@ async def pizza_menu(message: types.Message, state: FSMContext):
             for name in ans['items'] if name['category'] == cat]
     else:
         food = [
-            f"{name['name']} - {'-'.join([sorted(list(set([str(name['shoppingItems'][i]['price']) for i in range(len(name['shoppingItems']))])))[1]])}"
+            f"{name['name']} - {sorted(list(set([str(name['shoppingItems'][i]['price']) for i in range(len(name['shoppingItems']))])))[0] if len(sorted(list(set([str(name['shoppingItems'][i]['price']) for i in range(len(name['shoppingItems']))])))) == 1 else sorted(list(set([str(name['shoppingItems'][i]['price']) for i in range(len(name['shoppingItems']))])))[1]}"
             for name in ans['items'] if name['category'] == cat]
     food.insert(0, "Название. Цена")
     await state.update_data(categorial=cat, menu=food[1:])
