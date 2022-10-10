@@ -1,10 +1,6 @@
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
 
-class Token(StatesGroup):
-    start = State()
-
-
 class Join(StatesGroup):
     start = State()
 
@@ -20,6 +16,7 @@ class ORDER(StatesGroup):
 class Dodo(StatesGroup):
     menu = State()
     add = State()
+    price = State()
     back = State()
     result = State()
 
@@ -27,6 +24,7 @@ class Dodo(StatesGroup):
 class Fank(StatesGroup):
     menu = State()
     add = State()
+    price = State()
     back = State()
     result = State()
 
@@ -35,11 +33,13 @@ class Limonad(StatesGroup):
     menu = State()
     add = State()
     back = State()
+    price = State()
     result = State()
 
 
 class Iberia(StatesGroup):
     menu = State()
     add = State()
+    price = State()
     back = State()
     result = State()

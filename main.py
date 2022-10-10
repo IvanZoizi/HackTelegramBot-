@@ -5,7 +5,7 @@ from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, ContentType
 
 from secrets import token_hex
 
-from classes import Token, Join, ORDER, Dodo, Fank, Limonad, Iberia
+from classes import Join, ORDER, Dodo, Fank, Limonad, Iberia
 
 from token_get import token, user, password, db_name, host, port, api_org, token_pay  # Токен бота
 import psycopg2
@@ -19,28 +19,23 @@ storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 
 
-@dp.message_handler(commands='start')
-async def start(message: types.Message):
+@dp.message_handler(commands='start', state='*')
+async def start(message: types.Message, state: FSMContext):
     await message.answer(
         "Привет👋. Я бот для автоматизации сбора заказов в вашем офисе.\n"
         "Для начало работы, создайте токен для приглашения в компанию с помощью команды /create_token.\n"
         "Если вам скинули токен для приглашения, то присоединитесь к компнаии с помощью команды /join_team\nЕсли вы заблудитесь, используйте команду /help")
+    await state.finish()
 
 
 @dp.message_handler(commands='create_token', state='*')
 async def create_token_start(message: types.Message):
-    await message.answer("Придумайте пароль для вашей компании")
-    await Token.start.set()
-
-
-@dp.message_handler(state=Token.start)
-async def create_token_password(message: types.Message, state: FSMContext):
     try:
         token = token_hex(16)
         with open('tokens.txt', 'r') as file:
             text = file.readlines()
         with open('tokens.txt', 'w') as file:
-            text.append(f"{token} \t {message.text}")
+            text.append(f"{token}")
             file.write('\n'.join(text))
         cur = con.cursor()
         cur.execute("""INSERT INTO userinfo (name, id_chat) VALUES (%s, %s)""", (message.from_user.username,
@@ -48,10 +43,8 @@ async def create_token_password(message: types.Message, state: FSMContext):
         con.commit()
         await message.answer(f"Вы успешно создали компанию")
         await message.answer(f'{token}')
-        await state.finish()
     except Exception:
         await message.answer("Возможно, вы уже создали компанию")
-        await state.finish()
 
 
 @dp.message_handler(commands='join_team', state='*')
@@ -145,39 +138,47 @@ async def rest_step(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ORDER.PAY_INFO)
 async def pay_info_step(message: types.Message, state: FSMContext):
     try:
-        pass
+        int(message.text)
+        await state.update_data(PAY_INFO=message.text)
+        buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
+            *[KeyboardButton(i) for i in ['10 миинут', '30 минут', '1 час', '1 час 30 минут', '3 часа']])
+        await message.answer('Выберите ограничения ожидания заказа по времени', reply_markup=buttons)
+        await ORDER.TIME.set()
     except ValueError:
-        pass
-    await state.update_data(PAY_INFO=message.text)
-    await message.answer('Выберите ограничения ожидания заказа по времени')
-    await ORDER.TIME.set()
+        await message.answer("Попробуйте еще раз")
+        await message.answer('Укажите реквизиты для оплаты заказа коллегами 💳')
 
 
 @dp.message_handler(state=ORDER.TIME)
 async def time_step(message: types.Message, state: FSMContext):
-    # проверка коррект времени
-    await state.update_data(TIME=message.text)
-    cur.execute("SELECT (id_chat) FROM userinfo")
-    names = cur.fetchall()
-    data = await state.get_data()
-    await message.answer('Ожидайте заказа сотрудников')
-    buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
-        *[KeyboardButton(i) for i in ['Да', 'Нет']])
-    for id in names:
-        print(id)
-        await bot.send_message(id[0], f"Заказ. Ресторан - {data['RESTORAN']}. Время - {data['TIME']}."
-                                      f"Принять заказ?", reply_markup=buttons)
-        state_user = dp.current_state(chat=int(id[0]), user=int(id[0]))
-        await state_user.set_state(ORDER.WAIT)
-        await state_user.update_data(RESTORAN=data['RESTORAN'], TIME=data['TIME'],
-                                     PAY_INFO=data['PAY_INFO'], user_name=data['user_name'],
-                                     chat_id=data['chat_id'])
-    cur.execute("""SELECT (id) FROM userinfo WHERE name = %s""", (message.from_user.username,))
-    user = cur.fetchone()
-    cur.execute("""INSERT INTO order_user (user_id) VALUES (%s)""", (user,))
-    con.commit()
-    # добавление заказа в БД
-    await ORDER.WAIT.set()
+    if message.text.lower() not in ['10 миинут', '30 минут', '1 час', '1 час 30 минут', '3 часа']:
+        await message.answer("Попробуйте еще раз")
+        buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
+            *[KeyboardButton(i) for i in ['10 миинут', '30 минут', '1 час', '1 час 30 минут', '3 часа']])
+        await message.answer('Выберите ограничения ожидания заказа по времени', reply_markup=buttons)
+    else:
+        await state.update_data(TIME=message.text)
+        cur.execute("SELECT (id_chat) FROM userinfo")
+        names = cur.fetchall()
+        data = await state.get_data()
+        await message.answer('Ожидайте заказа сотрудников')
+        buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
+            *[KeyboardButton(i) for i in ['Да', 'Нет']])
+        for id in names:
+            print(id)
+            await bot.send_message(id[0], f"Заказ. Ресторан - {data['RESTORAN']}. Время - {data['TIME']}."
+                                          f"Принять заказ?", reply_markup=buttons)
+            state_user = dp.current_state(chat=int(id[0]), user=int(id[0]))
+            await state_user.set_state(ORDER.WAIT)
+            await state_user.update_data(RESTORAN=data['RESTORAN'], TIME=data['TIME'],
+                                         PAY_INFO=data['PAY_INFO'], user_name=data['user_name'],
+                                         chat_id=data['chat_id'])
+        cur.execute("""SELECT (id) FROM userinfo WHERE name = %s""", (message.from_user.username,))
+        user = cur.fetchone()
+        cur.execute("""INSERT INTO order_user (user_id) VALUES (%s)""", (user,))
+        con.commit()
+        # добавление заказа в БД
+        await ORDER.WAIT.set()
 
 
 @dp.message_handler(state=ORDER.WAIT)
@@ -260,9 +261,13 @@ async def pizza_menu(message: types.Message, state: FSMContext):
     cat = dic_cat[message.text.capitalize()]
     # Создания меню
     if cat != 1:
-        food = [
-            f"{name['name']} - {'-'.join(sorted(list(set([str(name['shoppingItems'][i]['price']) for i in range(len(name['shoppingItems']))]))))}"
-            for name in ans['items'] if name['category'] == cat]
+        food = []
+        food_name = []
+        for name in ans['items']:
+            if name['category'] == cat and name['name'] not in food_name:
+                food.append(
+                    f"{name['name']} - {'-'.join(sorted(list(set([str(name['shoppingItems'][i]['price']) for i in range(len(name['shoppingItems']))]))))}")
+                food_name.append(name['name'])
     else:
         food = [
             f"{name['name']} - {sorted(list(set([str(name['shoppingItems'][i]['price']) for i in range(len(name['shoppingItems']))])))[0] if len(sorted(list(set([str(name['shoppingItems'][i]['price']) for i in range(len(name['shoppingItems']))])))) == 1 else sorted(list(set([str(name['shoppingItems'][i]['price']) for i in range(len(name['shoppingItems']))])))[1]}"
@@ -272,8 +277,8 @@ async def pizza_menu(message: types.Message, state: FSMContext):
     await message.answer('\n'.join(food))
     await Dodo.add.set()
     buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(KeyboardButton('Назад'))
-    await message.answer("Напишите название и количество блюд, которые вы хотите заказать.\n"
-                         "Например: Манго-шейк/2, Айс Капучино/1", reply_markup=buttons)
+    await message.answer("Введите названия блюд через запятую\n"
+                         "Например: Манго-шейк", reply_markup=buttons)
 
 
 @dp.message_handler(state=Dodo.add)
@@ -287,47 +292,72 @@ async def add_menu(message: types.Message, state: FSMContext):
     menu = data['menu']
     foods = {}
     for food_price in menu:
-        print(food_price)
-        foods[food_price.split(' - ')[0].capitalize()] = float(food_price.split(' - ')[1])
+        foods[food_price.split(' - ')[0].capitalize().strip()] = float(food_price.split(' - ')[1])
     # Проверка
-    message_user = message.text.split(',')
-    if not all([food.lstrip().rstrip().split('/')[0].capitalize() in list(foods) for food in message_user]):
+    await state.update_data(foods=foods)
+    food = [name.strip().capitalize() for name in message.text.split(',')]
+    if not all([name in foods.keys() for name in food]):
         await message.answer("Неверный формат ввода")
     else:
-        food = [food.lstrip().rstrip().split('/')[0].capitalize() for food in message_user]
-        price = 0
         # Подведения чека
-        for order in message_user:
-            price += float(order.split('/')[1]) * foods[order.strip().split('/')[0].capitalize()]
-        if 'price' in data.keys():
-            price += data['price']
+        await state.update_data(current_food=food)
         if 'food' in data.keys():
             food += data['food']
-        buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
-            *[KeyboardButton(i) for i in ['Оплатить', 'Добавить']])
-        await state.update_data(price=price, food=food)
-        await message.answer("Хотите заказать ещё или оплатить заказ?", reply_markup=buttons)
-        await Dodo.back.set()
+        await state.update_data(food=food)
+        await message.answer("Введите количество блюд через запятую")
+        await Dodo.price.set()
+
+
+@dp.message_handler(state=Dodo.price)
+async def pizza_price(message: types.Message, state: FSMContext):
+    try:
+        col = [int(name.strip()) for name in message.text.split(',')]
+        if any([name > 20 for name in col]):
+            await message.answer("Слишком большое количество блюд. Максимальное количество - 20")
+            await message.answer("Введите количество")
+        else:
+            data = await state.get_data()
+            foods = data['foods']
+            current_food = data['current_food']
+            if len(current_food) != len(col):
+                await message.answer("Неправильный ввод. Попробуйте еще раз")
+            else:
+                price = 0
+                check = []
+                for i in range(len(col)):
+                    price += int(foods[current_food[i]]) * col[i]
+                    check.append(f"{current_food[i]}/{col[i]}")
+                if 'price' in data.keys():
+                    price += data['price']
+                await state.update_data(price=price, food=check)
+                buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
+                    *[KeyboardButton(i) for i in ['Оплатить', 'Добавить']])
+                await message.answer("Готово. Вы хотите оплатить или добавить блюда?", reply_markup=buttons)
+                await Dodo.back.set()
+    except ValueError:
+        await message.answer("Попробуйте еще раз")
+        await message.answer("Введите количество")
 
 
 @dp.message_handler(state=Dodo.result)
 async def pizza_result(message: types.Message, state: FSMContext):
-    if message.text.capitalize() not in ['Телеграмм', 'Сам']:
+    if message.text.capitalize() not in ['Телеграмм', 'Получить реквизиты']:
         await message.answer("Попробуйте еще раз")
     else:
-        if message.text.capitalize() == 'Сам':
-            # Оплата в живую
+        if message.text.capitalize() == 'Получить реквизиты':
             data = await state.get_data()
-            print(data['food'])
             user_name, chat_id = data['user_name'], data['chat_id']
-            await message.answer(f"Заказ оформлен. Пользователь {user_name} ждет отплаты")
+            await message.answer(f"Заказ оформлен. Пользователь {user_name} ждет отплат\n"
+                                 f"Заказ на сумму {data['price']}. Сам заказ - {','.join(data['food'])}")
             await bot.send_message(chat_id, f"Заказ оформил {message.from_user.username}, на сумму {data['price']}.\n"
                                             f"Сам заказ - {','.join(data['food'])}")
             csv = pd.read_csv("order.csv")
-            dic = {'name': message.from_user.username, 'order': ','.join(data['food']), 'price': data['price'], 'restoran': data['RESTORAN']}
+            dic = {'name': message.from_user.username, 'order': ','.join(data['food']), 'price': data['price'],
+                   'restoran': data['RESTORAN']}
             csv = pd.concat([csv, pd.DataFrame(dic, index=[0])], ignore_index=True, axis=0)
             csv = csv[['name', 'order', 'price', 'restoran']]
             csv.to_csv('order.csv')
+            await state.finish()
         elif message.text.capitalize() == 'Телеграмм':
             data = await state.get_data()
             PRICE = types.LabeledPrice(label=f"{data['RESTORAN']}",
@@ -342,6 +372,7 @@ async def pizza_result(message: types.Message, state: FSMContext):
                                    prices=[PRICE],
                                    start_parameter='pay-order',
                                    payload="test-invoice-payload")
+            await state.finish()
 
 
 # pre checkout  (must be answered in 10 seconds)
@@ -393,20 +424,32 @@ async def fank_result(message: types.Message, state: FSMContext):
     if message.text.capitalize() not in ['Телеграмм', 'Получить реквизиты']:
         await message.answer("Попробуйте еще раз")
     else:
-        if message.text.capitalize() == 'Сам':
+        if message.text.capitalize() == 'Получить реквизиты':
             data = await state.get_data()
             user_name, chat_id = data['user_name'], data['chat_id']
             await message.answer(f"Заказ оформлен. Пользователь {user_name} ждет отплаты")
             await bot.send_message(chat_id, f"Заказ оформил {message.from_user.username}, на сумму {data['price']}.\n"
                                             f"Сам заказ - {','.join(data['food'])}")
             csv = pd.read_csv("order.csv")
-            dic = {'name': message.from_user.username, 'order': ','.join(data['food']), 'price': data['price'], 'restoran': data['RESTORAN']}
+            dic = {'name': message.from_user.username, 'order': ','.join(data['food']), 'price': data['price'],
+                   'restoran': data['RESTORAN']}
             csv = pd.concat([csv, pd.DataFrame(dic, index=[0])], ignore_index=True, axis=0)
             csv = csv[['name', 'order', 'price', 'restoran']]
             csv.to_csv('order.csv')
-        else:
-            pass
-            # Допили пж)))
+        elif message.text.capitalize() == 'Телеграмм':
+            data = await state.get_data()
+            PRICE = types.LabeledPrice(label=f"{data['RESTORAN']}",
+                                       amount=int(data['price'] * 100))
+
+            await bot.send_invoice(message.chat.id,
+                                   title=f"{data['RESTORAN']}",
+                                   description=f"Заказ: {','.join(data['food'])}",
+                                   provider_token=token_pay,
+                                   currency="rub",
+                                   is_flexible=False,
+                                   prices=[PRICE],
+                                   start_parameter='pay-order',
+                                   payload="test-invoice-payload")
 
 
 @dp.message_handler(state=Fank.menu)
@@ -425,8 +468,8 @@ async def fank_menu(message: types.Message, state: FSMContext):
         await message.answer('\n'.join(food))
         await Fank.add.set()
         buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(KeyboardButton('Назад'))
-        await message.answer("Напишите название и количество блюд, которые выхотите заказать.\n"
-                             "Пример. Манго-шейк/2, Айс Капучино/1", reply_markup=buttons)
+        await message.answer("Напишите название блюд, которые выхотите заказать.\n"
+                             "Пример. Манго-шейк", reply_markup=buttons)
 
 
 @dp.message_handler(state=Fank.add)
@@ -435,29 +478,56 @@ async def fank_add(message: types.Message, state: FSMContext):
         await message.answer("Возвращаемся назад")
         task = asyncio.create_task(fank(message, state))
         await task
+    # Обработка меню
     data = await state.get_data()
     menu = data['menu']
     foods = {}
     for food_price in menu:
-        foods[food_price.split(' - ')[0].capitalize()] = float(food_price.split(' - ')[1])
+        foods[food_price.split(' - ')[0].capitalize().strip()] = float(food_price.split(' - ')[1])
     # Проверка
-    message_user = message.text.split(',')
-    if not all([food.lstrip().rstrip().split('/')[0].capitalize() in list(foods) for food in message_user]):
+    await state.update_data(foods=foods)
+    food = [name.strip().capitalize() for name in message.text.split(',')]
+    if not all([name in foods.keys() for name in food]):
         await message.answer("Неверный формат ввода")
     else:
-        food = [food.lstrip().rstrip().split('/')[0].capitalize() for food in message_user]
-        price = 0
-        for order in message_user:
-            price += float(order.split('/')[1]) * foods[order.strip().split('/')[0].capitalize()]
-        if 'price' in data.keys():
-            price += data['price']
+        # Подведения чека
+        await state.update_data(current_food=food)
         if 'food' in data.keys():
             food += data['food']
-        buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
-            *[KeyboardButton(i) for i in ['Оплатить', 'Добавить']])
-        await state.update_data(price=price, food=food)
-        await message.answer("Еще добавим блюда или оформим заказ?", reply_markup=buttons)
-        await Fank.back.set()
+        await state.update_data(food=food)
+        await message.answer("Введите количество блюд через запятую")
+        await Fank.price.set()
+
+
+@dp.message_handler(state=Fank.price)
+async def fank_price(message: types.Message, state: FSMContext):
+    try:
+        col = [int(name.strip()) for name in message.text.split(',')]
+        if any([name > 20 for name in col]):
+            await message.answer("Слишком большое количество блюд. Максимальное количество - 20")
+            await message.answer("Введите количество")
+        else:
+            data = await state.get_data()
+            foods = data['foods']
+            current_food = data['current_food']
+            if len(current_food) != len(col):
+                await message.answer("Неправильный ввод. Попробуйте еще раз")
+            else:
+                price = 0
+                check = []
+                for i in range(len(col)):
+                    price += int(foods[current_food[i]]) * col[i]
+                    check.append(f"{current_food[i]}/{col[i]}")
+                if 'price' in data.keys():
+                    price += data['price']
+                await state.update_data(price=price, food=check)
+                buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
+                    *[KeyboardButton(i) for i in ['Оплатить', 'Добавить']])
+                await message.answer("Готово. Вы хотите оплатить или добавить блюда?", reply_markup=buttons)
+                await Fank.back.set()
+    except ValueError:
+        await message.answer("Попробуйте еще раз")
+        await message.answer("Введите количество")
 
 
 @dp.message_handler(state=Limonad.back)
@@ -485,23 +555,35 @@ async def limonad(message: types.Message, state: FSMContext):
 
 @dp.message_handler(state=Limonad.result)
 async def limonad_result(message: types.Message, state: FSMContext):
-    if message.text.capitalize() not in ['Телеграмм', 'Сам']:
+    if message.text.capitalize() not in ['Телеграмм', 'Получить реквизиты']:
         await message.answer("Попробуйте еще раз")
     else:
-        if message.text.capitalize() == 'Сам':
+        if message.text.capitalize() == 'Получить реквизиты':
             data = await state.get_data()
             user_name, chat_id = data['user_name'], data['chat_id']
             await message.answer(f"Заказ оформлен. Пользователь {user_name} ждет отплаты")
             await bot.send_message(chat_id, f"Заказ оформил {message.from_user.username}, на сумму {data['price']}.\n"
                                             f"Сам заказ - {','.join(data['food'])}")
             csv = pd.read_csv("order.csv")
-            dic = {'name': message.from_user.username, 'order': ','.join(data['food']), 'price': data['price'], 'restoran': data['RESTORAN']}
+            dic = {'name': message.from_user.username, 'order': ','.join(data['food']), 'price': data['price'],
+                   'restoran': data['RESTORAN']}
             csv = pd.concat([csv, pd.DataFrame(dic, index=[0])], ignore_index=True, axis=0)
             csv = csv[['name', 'order', 'price', 'restoran']]
             csv.to_csv('order.csv')
-        else:
-            pass
-            # Допили пж)))
+        elif message.text.capitalize() == 'Телеграмм':
+            data = await state.get_data()
+            PRICE = types.LabeledPrice(label=f"{data['RESTORAN']}",
+                                       amount=int(data['price'] * 100))
+
+            await bot.send_invoice(message.chat.id,
+                                   title=f"{data['RESTORAN']}",
+                                   description=f"Заказ: {','.join(data['food'])}",
+                                   provider_token=token_pay,
+                                   currency="rub",
+                                   is_flexible=False,
+                                   prices=[PRICE],
+                                   start_parameter='pay-order',
+                                   payload="test-invoice-payload")
 
 
 @dp.message_handler(state=Limonad.menu)
@@ -520,8 +602,8 @@ async def limonad_menu(message: types.Message, state: FSMContext):
         await message.answer('\n'.join(food))
         await Limonad.add.set()
         buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(KeyboardButton('Назад'))
-        await message.answer("Напишите название и количество блюд, которые выхотите заказать.\n"
-                             "Пример. Манго-шейк/2, Айс Капучино/1", reply_markup=buttons)
+        await message.answer("Напишите название блюд, которые выхотите заказать.\n"
+                             "Пример. Манго-шейк", reply_markup=buttons)
 
 
 @dp.message_handler(state=Limonad.add)
@@ -530,29 +612,56 @@ async def limonad_add(message: types.Message, state: FSMContext):
         await message.answer("Возвращаемся назад")
         task = asyncio.create_task(limonad(message, state))
         await task
+    # Обработка меню
     data = await state.get_data()
     menu = data['menu']
     foods = {}
     for food_price in menu:
-        foods[food_price.split(' - ')[0].capitalize()] = float(food_price.split(' - ')[1])
+        foods[food_price.split(' - ')[0].capitalize().strip()] = float(food_price.split(' - ')[1])
     # Проверка
-    message_user = message.text.split(',')
-    if not all([food.lstrip().rstrip().split('/')[0].capitalize() in list(foods) for food in message_user]):
+    await state.update_data(foods=foods)
+    food = [name.strip().capitalize() for name in message.text.split(',')]
+    if not all([name in foods.keys() for name in food]):
         await message.answer("Неверный формат ввода")
     else:
-        food = [food.lstrip().rstrip().split('/')[0].capitalize() for food in message_user]
-        price = 0
-        for order in message_user:
-            price += float(order.split('/')[1]) * foods[order.strip().split('/')[0].capitalize()]
-        if 'price' in data.keys():
-            price += data['price']
+        # Подведения чека
+        await state.update_data(current_food=food)
         if 'food' in data.keys():
             food += data['food']
-        buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
-            *[KeyboardButton(i) for i in ['Оплатить', 'Добавить']])
-        await state.update_data(price=price, food=food)
-        await message.answer("Еще добавим блюда или оформим заказ?", reply_markup=buttons)
-        await Limonad.back.set()
+        await state.update_data(food=food)
+        await message.answer("Введите количество блюд через запятую")
+        await Limonad.price.set()
+
+
+@dp.message_handler(state=Limonad.price)
+async def limonad_price(message: types.Message, state: FSMContext):
+    try:
+        col = [int(name.strip()) for name in message.text.split(',')]
+        if any([name > 20 for name in col]):
+            await message.answer("Слишком большое количество блюд. Максимальное количество - 20")
+            await message.answer("Введите количество")
+        else:
+            data = await state.get_data()
+            foods = data['foods']
+            current_food = data['current_food']
+            if len(current_food) != len(col):
+                await message.answer("Неправильный ввод. Попробуйте еще раз")
+            else:
+                price = 0
+                check = []
+                for i in range(len(col)):
+                    price += int(foods[current_food[i]]) * col[i]
+                    check.append(f"{current_food[i]}/{col[i]}")
+                if 'price' in data.keys():
+                    price += data['price']
+                await state.update_data(price=price, food=check)
+                buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
+                    *[KeyboardButton(i) for i in ['Оплатить', 'Добавить']])
+                await message.answer("Готово. Вы хотите оплатить или добавить блюда?", reply_markup=buttons)
+                await Limonad.back.set()
+    except ValueError:
+        await message.answer("Попробуйте еще раз")
+        await message.answer("Введите количество")
 
 
 @dp.message_handler(state=Iberia.back)
@@ -563,7 +672,7 @@ async def iberia(message: types.Message, state: FSMContext):
         buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
             *[KeyboardButton(i) for i in ['Телеграмм', 'Получить реквизиты']])
         await message.answer("Оплата. Выберите способ оплаты: Телеграмм, Получить реквизиты инициатора заказа",
-            reply_markup=buttons)
+                             reply_markup=buttons)
         await Iberia.result.set()
     else:
         with open('iberia.txt', 'r', encoding='utf-8') as file:
@@ -573,7 +682,7 @@ async def iberia(message: types.Message, state: FSMContext):
             *[KeyboardButton(i) for i in ['Шашлык', 'Блюда на заказ', 'Горячие блюда', 'Блюда из рыбы']])
         await message.answer('\n'.join(
             [f"{id + 1}) {i}" for id, i in enumerate(['Шашлык', 'Блюда на заказ', 'Горячие блюда', 'Блюда из рыбы'])]),
-                             reply_markup=buttons)
+            reply_markup=buttons)
         await message.answer("Выберите категорию", reply_markup=buttons)
         await Iberia.menu.set()
 
@@ -583,7 +692,7 @@ async def iberia_result(message: types.Message, state: FSMContext):
     if message.text.capitalize() not in ['Телеграмм', 'Получить реквизиты']:
         await message.answer("Попробуйте еще раз")
     else:
-        if message.text.capitalize() == 'Сам':
+        if message.text.capitalize() == 'Получить реквизиты':
             data = await state.get_data()
             user_name, chat_id = data['user_name'], data['chat_id']
             await message.answer(f"Заказ оформлен. Пользователь {user_name} ждет отплаты")
@@ -591,13 +700,25 @@ async def iberia_result(message: types.Message, state: FSMContext):
                                             f"Сам заказ - {','.join(data['food'])}")
             # Аналитика
             csv = pd.read_csv("order.csv")
-            dic = {'name': message.from_user.username, 'order': ','.join(data['food']), 'price': data['price'], 'restoran': data['RESTORAN']}
+            dic = {'name': message.from_user.username, 'order': ','.join(data['food']), 'price': data['price'],
+                   'restoran': data['RESTORAN']}
             csv = pd.concat([csv, pd.DataFrame(dic, index=[0])], ignore_index=True, axis=0)
             csv = csv[['name', 'order', 'price', 'restoran']]
             csv.to_csv('order.csv')
-        else:
-            pass
-            # Допили пж)))
+        elif message.text.capitalize() == 'Телеграмм':
+            data = await state.get_data()
+            PRICE = types.LabeledPrice(label=f"{data['RESTORAN']}",
+                                       amount=int(data['price'] * 100))
+
+            await bot.send_invoice(message.chat.id,
+                                   title=f"{data['RESTORAN']}",
+                                   description=f"Заказ: {','.join(data['food'])}",
+                                   provider_token=token_pay,
+                                   currency="rub",
+                                   is_flexible=False,
+                                   prices=[PRICE],
+                                   start_parameter='pay-order',
+                                   payload="test-invoice-payload")
 
 
 @dp.message_handler(state=Iberia.menu)
@@ -616,39 +737,66 @@ async def iberia_menu(message: types.Message, state: FSMContext):
         await message.answer('\n'.join(food))
         await Iberia.add.set()
         buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(KeyboardButton('Назад'))
-        await message.answer("Напишите название и количество блюд, которые выхотите заказать.\n"
-                             "Пример. Манго-шейк/2, Айс Капучино/1", reply_markup=buttons)
+        await message.answer("Напишите название, которые выхотите заказать.\n"
+                             "Пример. Манго-шейк", reply_markup=buttons)
 
 
 @dp.message_handler(state=Iberia.add)
 async def iberia_add(message: types.Message, state: FSMContext):
     if message.text.lower() == 'назад':
         await message.answer("Возвращаемся назад")
-        task = asyncio.create_task(iberia(message, state))
+        task = asyncio.create_task(limonad(message, state))
         await task
+    # Обработка меню
     data = await state.get_data()
     menu = data['menu']
     foods = {}
     for food_price in menu:
-        foods[food_price.split(' - ')[0].capitalize()] = float(food_price.split(' - ')[1])
+        foods[food_price.split(' - ')[0].capitalize().strip()] = float(food_price.split(' - ')[1])
     # Проверка
-    message_user = message.text.split(',')
-    if not all([food.lstrip().rstrip().split('/')[0].capitalize() in list(foods) for food in message_user]):
+    await state.update_data(foods=foods)
+    food = [name.strip().capitalize() for name in message.text.split(',')]
+    if not all([name in foods.keys() for name in food]):
         await message.answer("Неверный формат ввода")
     else:
-        food = [food.lstrip().rstrip().split('/')[0].capitalize() for food in message_user]
-        price = 0
-        for order in message_user:
-            price += float(order.split('/')[1]) * foods[order.strip().split('/')[0].capitalize()]
-        if 'price' in data.keys():
-            price += data['price']
+        # Подведения чека
+        await state.update_data(current_food=food)
         if 'food' in data.keys():
             food += data['food']
-        buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
-            *[KeyboardButton(i) for i in ['Оплатить', 'Добавить']])
-        await state.update_data(price=price, food=food)
-        await message.answer("Еще добавим блюда или оформим заказ?", reply_markup=buttons)
-        await Iberia.back.set()
+        await state.update_data(food=food)
+        await message.answer("Введите количество блюд через запятую")
+        await Iberia.price.set()
+
+
+@dp.message_handler(state=Iberia.price)
+async def iberia_price(message: types.Message, state: FSMContext):
+    try:
+        col = [int(name.strip()) for name in message.text.split(',')]
+        if any([name > 20 for name in col]):
+            await message.answer("Слишком большое количество блюд. Максимальное количество - 20")
+            await message.answer("Введите количество")
+        else:
+            data = await state.get_data()
+            foods = data['foods']
+            current_food = data['current_food']
+            if len(current_food) != len(col):
+                await message.answer("Неправильный ввод. Попробуйте еще раз")
+            else:
+                price = 0
+                check = []
+                for i in range(len(col)):
+                    price += int(foods[current_food[i]]) * col[i]
+                    check.append(f"{current_food[i]}/{col[i]}")
+                if 'price' in data.keys():
+                    price += data['price']
+                await state.update_data(price=price, food=check)
+                buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
+                    *[KeyboardButton(i) for i in ['Оплатить', 'Добавить']])
+                await message.answer("Готово. Вы хотите оплатить или добавить блюда?", reply_markup=buttons)
+                await Iberia.back.set()
+    except ValueError:
+        await message.answer("Попробуйте еще раз")
+        await message.answer("Введите количество")
 
 
 if __name__ == '__main__':
