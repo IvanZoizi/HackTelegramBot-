@@ -11,7 +11,7 @@ from token_get import token, user, password, db_name, host, port, api_org, token
 import psycopg2
 import requests
 import asyncio
-
+import aioschedule
 import pandas as pd
 
 bot = Bot(token)
@@ -141,7 +141,7 @@ async def pay_info_step(message: types.Message, state: FSMContext):
         int(message.text)
         await state.update_data(PAY_INFO=message.text)
         buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
-            *[KeyboardButton(i) for i in ['10 миинут', '30 минут', '1 час', '1 час 30 минут', '3 часа']])
+            *[KeyboardButton(i) for i in ['10 минут', '30 минут', '1 час', '1 час 30 минут', '3 часа']])
         await message.answer('Выберите ограничения ожидания заказа по времени', reply_markup=buttons)
         await ORDER.TIME.set()
     except ValueError:
@@ -151,12 +151,13 @@ async def pay_info_step(message: types.Message, state: FSMContext):
 
 @dp.message_handler(state=ORDER.TIME)
 async def time_step(message: types.Message, state: FSMContext):
-    if message.text.lower() not in ['10 миинут', '30 минут', '1 час', '1 час 30 минут', '3 часа']:
+    if message.text.lower() not in ['10 минут', '30 минут', '1 час', '1 час 30 минут', '3 часа']:
         await message.answer("Попробуйте еще раз")
         buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
             *[KeyboardButton(i) for i in ['10 миинут', '30 минут', '1 час', '1 час 30 минут', '3 часа']])
         await message.answer('Выберите ограничения ожидания заказа по времени', reply_markup=buttons)
     else:
+        dic = {'10 минут': 5, '30 минут': 30 * 60, '1 час': 3600, '1 час 30 минут': 3600 + 30 * 60, '3 часа': 3 * 3600}
         await state.update_data(TIME=message.text)
         cur.execute("SELECT (id_chat) FROM userinfo")
         names = cur.fetchall()
@@ -164,20 +165,25 @@ async def time_step(message: types.Message, state: FSMContext):
         await message.answer('Ожидайте заказа сотрудников')
         buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
             *[KeyboardButton(i) for i in ['Да', 'Нет']])
+        cur.execute("""SELECT (id) FROM userinfo WHERE name = %s""", (message.from_user.username,))
+        user = cur.fetchone()
+        cur.execute("""INSERT INTO order_user (user_id) VALUES (%s)""", (user,))
+        con.commit()
+        cur.execute("""SELECT (id) FROM order_user WHERE user_id = %s""", (user,))
+        order = cur.fetchone()
+        # """        await state.update_data(order=order)"""
         for id in names:
-            print(id)
             await bot.send_message(id[0], f"Заказ. Ресторан - {data['RESTORAN']}. Время - {data['TIME']}."
                                           f"Принять заказ?", reply_markup=buttons)
             state_user = dp.current_state(chat=int(id[0]), user=int(id[0]))
             await state_user.set_state(ORDER.WAIT)
             await state_user.update_data(RESTORAN=data['RESTORAN'], TIME=data['TIME'],
                                          PAY_INFO=data['PAY_INFO'], user_name=data['user_name'],
-                                         chat_id=data['chat_id'])
-        cur.execute("""SELECT (id) FROM userinfo WHERE name = %s""", (message.from_user.username,))
-        user = cur.fetchone()
-        cur.execute("""INSERT INTO order_user (user_id) VALUES (%s)""", (user,))
-        con.commit()
+                                         chat_id=data['chat_id'], order=order)
         # добавление заказа в БД
+        loop.create_task(
+            scheduled(dic[message.text.lower()], user_name=data['user_name'], chat_id=data['chat_id'], order=order,
+                      id=user))
         await ORDER.WAIT.set()
 
 
@@ -227,7 +233,7 @@ async def pizza(message: types.Message, state: FSMContext):
     # оплата
     elif message.text.capitalize() == 'Оплатить':
         buttons = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
-            *[KeyboardButton(i) for i in ['Телеграмм', 'Сам']])
+            *[KeyboardButton(i) for i in ['Телеграмм', 'Получить реквизиты']])
         await message.answer("Переходим к оплате. Хотите отплатить переводом через Телеграмм или своим путем?",
                              reply_markup=buttons)
         await Dodo.result.set()
@@ -344,8 +350,8 @@ async def pizza_result(message: types.Message, state: FSMContext):
     if message.text.capitalize() not in ['Телеграмм', 'Получить реквизиты']:
         await message.answer("Попробуйте еще раз")
     else:
+        data = await state.get_data()
         if message.text.capitalize() == 'Получить реквизиты':
-            data = await state.get_data()
             user_name, chat_id = data['user_name'], data['chat_id']
             await message.answer(f"Заказ оформлен. Пользователь {user_name} ждет отплат\n"
                                  f"Заказ на сумму {data['price']}. Сам заказ - {','.join(data['food'])}")
@@ -357,9 +363,13 @@ async def pizza_result(message: types.Message, state: FSMContext):
             csv = pd.concat([csv, pd.DataFrame(dic, index=[0])], ignore_index=True, axis=0)
             csv = csv[['name', 'order', 'price', 'restoran']]
             csv.to_csv('order.csv')
+            cur.execute("""SELECT id FROM userinfo WHERE name = %s""", (user_name,))
+            user = cur.fetchone()
+            cur.execute("""INSERT INTO orderrespose (id_order, id_user, price, order_text) VALUES (%s, %s, %s, %s)""",
+                        (data['order'], user, data['price'], data['food']))
+            con.commit()
             await state.finish()
         elif message.text.capitalize() == 'Телеграмм':
-            data = await state.get_data()
             PRICE = types.LabeledPrice(label=f"{data['RESTORAN']}",
                                        amount=int(data['price'] * 100))
 
@@ -373,6 +383,12 @@ async def pizza_result(message: types.Message, state: FSMContext):
                                    start_parameter='pay-order',
                                    payload="test-invoice-payload")
             await state.finish()
+            user_name = data['user_name']
+            cur.execute("""SELECT id FROM userinfo WHERE name = %s""", (user_name,))
+            user = cur.fetchone()
+            cur.execute("""INSERT INTO orderrespose (id_order, id_user, price, order_text) VALUES (%s, %s, %s, %s)""",
+                        (data['order'], user, data['price'], data['food']))
+            con.commit()
 
 
 # pre checkout  (must be answered in 10 seconds)
@@ -436,6 +452,11 @@ async def fank_result(message: types.Message, state: FSMContext):
             csv = pd.concat([csv, pd.DataFrame(dic, index=[0])], ignore_index=True, axis=0)
             csv = csv[['name', 'order', 'price', 'restoran']]
             csv.to_csv('order.csv')
+            cur.execute("""SELECT id FROM userinfo WHERE name = %s""", (user_name,))
+            user = cur.fetchone()
+            cur.execute("""INSERT INTO orderrespose (id_order, id_user, price, order_text) VALUES (%s, %s, %s, %s)""",
+                        (data['order'], user, data['price'], data['food']))
+            con.commit()
         elif message.text.capitalize() == 'Телеграмм':
             data = await state.get_data()
             PRICE = types.LabeledPrice(label=f"{data['RESTORAN']}",
@@ -450,6 +471,12 @@ async def fank_result(message: types.Message, state: FSMContext):
                                    prices=[PRICE],
                                    start_parameter='pay-order',
                                    payload="test-invoice-payload")
+            user_name = data['user_name']
+            cur.execute("""SELECT id FROM userinfo WHERE name = %s""", (user_name,))
+            user = cur.fetchone()
+            cur.execute("""INSERT INTO orderrespose (id_order, id_user, price, order_text) VALUES (%s, %s, %s, %s)""",
+                        (data['order'], user, data['price'], data['food']))
+            con.commit()
 
 
 @dp.message_handler(state=Fank.menu)
@@ -570,6 +597,11 @@ async def limonad_result(message: types.Message, state: FSMContext):
             csv = pd.concat([csv, pd.DataFrame(dic, index=[0])], ignore_index=True, axis=0)
             csv = csv[['name', 'order', 'price', 'restoran']]
             csv.to_csv('order.csv')
+            cur.execute("""SELECT id FROM userinfo WHERE name = %s""", (user_name,))
+            user = cur.fetchone()
+            cur.execute("""INSERT INTO orderrespose (id_order, id_user, price, order_text) VALUES (%s, %s, %s, %s)""",
+                        (data['order'], user, data['price'], data['food']))
+            con.commit()
         elif message.text.capitalize() == 'Телеграмм':
             data = await state.get_data()
             PRICE = types.LabeledPrice(label=f"{data['RESTORAN']}",
@@ -584,6 +616,12 @@ async def limonad_result(message: types.Message, state: FSMContext):
                                    prices=[PRICE],
                                    start_parameter='pay-order',
                                    payload="test-invoice-payload")
+            user_name = data['user_name']
+            cur.execute("""SELECT id FROM userinfo WHERE name = %s""", (user_name,))
+            user = cur.fetchone()
+            cur.execute("""INSERT INTO orderrespose (id_order, id_user, price, order_text) VALUES (%s, %s, %s, %s)""",
+                        (data['order'], user, data['price'], data['food']))
+            con.commit()
 
 
 @dp.message_handler(state=Limonad.menu)
@@ -705,6 +743,11 @@ async def iberia_result(message: types.Message, state: FSMContext):
             csv = pd.concat([csv, pd.DataFrame(dic, index=[0])], ignore_index=True, axis=0)
             csv = csv[['name', 'order', 'price', 'restoran']]
             csv.to_csv('order.csv')
+            cur.execute("""SELECT id FROM userinfo WHERE name = %s""", (user_name,))
+            user = cur.fetchone()
+            cur.execute("""INSERT INTO orderrespose (id_order, id_user, price, order_text) VALUES (%s, %s, %s, %s)""",
+                        (data['order'], user, data['price'], data['food']))
+            con.commit()
         elif message.text.capitalize() == 'Телеграмм':
             data = await state.get_data()
             PRICE = types.LabeledPrice(label=f"{data['RESTORAN']}",
@@ -719,6 +762,12 @@ async def iberia_result(message: types.Message, state: FSMContext):
                                    prices=[PRICE],
                                    start_parameter='pay-order',
                                    payload="test-invoice-payload")
+            user_name = data['user_name']
+            cur.execute("""SELECT id FROM userinfo WHERE name = %s""", (user_name,))
+            user = cur.fetchone()
+            cur.execute("""INSERT INTO orderrespose (id_order, id_user, price, order_text) VALUES (%s, %s, %s, %s)""",
+                        (data['order'], user, data['price'], data['food']))
+            con.commit()
 
 
 @dp.message_handler(state=Iberia.menu)
@@ -799,7 +848,32 @@ async def iberia_price(message: types.Message, state: FSMContext):
         await message.answer("Введите количество")
 
 
+async def scheduled(wait_for, id, user_name, chat_id, order):
+    await asyncio.sleep(wait_for)
+    print(user_name, chat_id, order)
+    cur.execute("""SELECT orderrespose.price, orderrespose.order_text, orderrespose.id_user, userinfo.name FROM orderrespose 
+INNER JOIN userinfo ON userinfo.id = orderrespose.id_user WHERE orderrespose.id_order = %s""", (order,))
+    answer = cur.fetchall()
+    if len(answer) > 0:
+        print(answer)
+        new_answer_message = ['Время вышло. Чек:']
+        for id, info in enumerate(answer):
+            new_answer_message.append(F"Заказ номер {id + 1} от {info[-1]} на сумму {info[0]}. Заказ {info[1][1:-1]}")
+        await bot.send_message(chat_id, '\n'.join(new_answer_message))
+    else:
+        await bot.send_message(chat_id, 'Заказ никто не принял')
+    cur.execute("""SELECT id_chat FROM userinfo""")
+    users = cur.fetchall()
+    for chat_id in users:
+        state_user = dp.current_state(chat=int(chat_id[0]), user=int(chat_id[0]))
+        await bot.send_message(chat_id[0], f"Заказ пользователя {user_name} закончился")
+        await state_user.finish()
+    cur.execute("""DELETE FROM orderrespose WHERE id_order = %s""", (order,))
+    con.commit()
+
+
 if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
     con = psycopg2.connect(f"dbname={db_name} host={host} password={password} port={port} user={user}")
     cur = con.cursor()
     executor.start_polling(dp, skip_updates=True)
