@@ -369,6 +369,7 @@ async def pizza_result(message: types.Message, state: FSMContext):
                                  f"Заказ на сумму {data['price']}. Сам заказ - {','.join(data['food'])}")
             await bot.send_message(chat_id, f"Заказ оформил {message.from_user.username}, на сумму {data['price']}.\n"
                                             f"Сам заказ - {','.join(data['food'])}")
+            await bot.send_message(chat_id, f"Реквизиты пользователя {data['PAY_INFO']}")
             csv = pd.read_csv("order.csv")
             dic = {'name': message.from_user.username, 'order': ','.join(data['food']), 'price': data['price'],
                    'restoran': data['RESTORAN']}
@@ -445,6 +446,7 @@ async def fank_result(message: types.Message, state: FSMContext):
             await message.answer(f"Заказ оформлен. Пользователь {user_name} ждет отплаты")
             await bot.send_message(chat_id, f"Заказ оформил {message.from_user.username}, на сумму {data['price']}.\n"
                                             f"Сам заказ - {','.join(data['food'])}")
+            await bot.send_message(chat_id, f"Реквизиты пользователя {data['PAY_INFO']}")
             csv = pd.read_csv("order.csv")
             dic = {'name': message.from_user.username, 'order': ','.join(data['food']), 'price': data['price'],
                    'restoran': data['RESTORAN']}
@@ -589,6 +591,7 @@ async def limonad_result(message: types.Message, state: FSMContext):
             await message.answer(f"Заказ оформлен. Пользователь {user_name} ждет оплаты")
             await bot.send_message(chat_id, f"Заказ оформил {message.from_user.username}, на сумму {data['price']}.\n"
                                             f"Сам заказ - {','.join(data['food'])}")
+            await bot.send_message(chat_id, f"Реквизиты пользователя {data['PAY_INFO']}")
             csv = pd.read_csv("order.csv")
             dic = {'name': message.from_user.username, 'order': ','.join(data['food']), 'price': data['price'],
                    'restoran': data['RESTORAN']}
@@ -733,6 +736,7 @@ async def iberia_result(message: types.Message, state: FSMContext):
             await message.answer(f"Заказ оформлен. Пользователь {user_name} ждет отплаты")
             await bot.send_message(chat_id, f"Заказ оформил {message.from_user.username}, на сумму {data['price']}.\n"
                                             f"Сам заказ - {','.join(data['food'])}")
+            await bot.send_message(chat_id, f"Реквизиты пользователя {data['PAY_INFO']}")
             # Аналитика
             csv = pd.read_csv("order.csv")
             dic = {'name': message.from_user.username, 'order': ','.join(data['food']), 'price': data['price'],
@@ -869,6 +873,7 @@ INNER JOIN userinfo ON userinfo.id = orderrespose.id_user WHERE orderrespose.id_
 
 
 if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
     con = psycopg2.connect(f"dbname={db_name} host={host} password={password} port={port} user={user}")
     cur = con.cursor()
     executor.start_polling(dp, skip_updates=True)
