@@ -329,6 +329,10 @@ async def add_menu(message: types.Message, state: FSMContext):
 @dp.message_handler(state=Dodo.price)
 async def pizza_price(message: types.Message, state: FSMContext):
     try:
+        if message.text.lower() == 'назад':
+            await message.answer("Возвращаемся назад")
+            task = asyncio.create_task(pizza(message, state))
+            await task
         col = [int(name.strip()) for name in message.text.split(',')]
         if any([name > 20 for name in col]):
             await message.answer("Слишком большое количество блюд. Максимальное количество - 20")
@@ -494,7 +498,7 @@ async def fank_menu(message: types.Message, state: FSMContext):
         cat = dic_cat[message.text.capitalize()]
         data = await state.get_data()
         menu = data['menu']
-        food = [f"{i.split('-')[1]} - {i.split('-')[-1]}" for i in menu if i.split('-')[0] == cat]
+        food = [f"{i.split('-')[1].strip()} - {i.split('-')[-1].strip()}" for i in menu if i.split('-')[0] == cat]
         food.insert(0, 'Название. Цена')
         await state.update_data(categorial=cat, menu=food[1:])
         await message.answer('\n'.join(food))
@@ -533,6 +537,10 @@ async def fank_add(message: types.Message, state: FSMContext):
 @dp.message_handler(state=Fank.price)
 async def fank_price(message: types.Message, state: FSMContext):
     try:
+        if message.text.lower() == 'назад':
+            await message.answer("Возвращаемся назад")
+            task = asyncio.create_task(fank(message, state))
+            await task
         col = [int(name.strip()) for name in message.text.split(',')]
         if any([name > 20 for name in col]):
             await message.answer("Слишком большое количество блюд. Максимальное количество - 20")
@@ -641,7 +649,7 @@ async def limonad_menu(message: types.Message, state: FSMContext):
         cat = dic_cat[message.text.capitalize()]
         data = await state.get_data()
         menu = data['menu']
-        food = [f"{i.split('-')[1]} - {i.split('-')[-1]}" for i in menu if i.split('-')[0] == cat]
+        food = [f"{i.split('-')[1].strip()} - {i.split('-')[-1].strip()}" for i in menu if i.split('-')[0] == cat]
         food.insert(0, 'Название. Цена')
         await state.update_data(categorial=cat, menu=food[1:])
         await message.answer('\n'.join(food))
@@ -661,7 +669,7 @@ async def limonad_add(message: types.Message, state: FSMContext):
     menu = data['menu']
     foods = {}
     for food_price in menu:
-        foods[food_price.split(' - ')[0].capitalize().strip()] = float(food_price.split(' - ')[1])
+        foods[food_price.split(' - ')[0].capitalize().strip()] = float(food_price.split(' - ')[1].strip())
     # Проверка
     await state.update_data(foods=foods)
     food = [name.strip().capitalize() for name in message.text.split(',')]
@@ -680,6 +688,10 @@ async def limonad_add(message: types.Message, state: FSMContext):
 @dp.message_handler(state=Limonad.price)
 async def limonad_price(message: types.Message, state: FSMContext):
     try:
+        if message.text.lower() == 'назад':
+            await message.answer("Возвращаемся назад")
+            task = asyncio.create_task(limonad(message, state))
+            await task
         col = [int(name.strip()) for name in message.text.split(',')]
         if any([name > 20 for name in col]):
             await message.answer("Слишком большое количество блюд. Максимальное количество - 20")
@@ -789,7 +801,7 @@ async def iberia_menu(message: types.Message, state: FSMContext):
         cat = dic_cat[message.text.capitalize()]
         data = await state.get_data()
         menu = data['menu']
-        food = [f"{i.split('-')[1]} - {i.split('-')[-1]}" for i in menu if i.split('-')[0] == cat]
+        food = [f"{i.split('-')[1].strip()} - {i.split('-')[-1].strip()}" for i in menu if i.split('-')[0] == cat]
         food.insert(0, 'Название. Цена')
         await state.update_data(categorial=cat, menu=food[1:])
         await message.answer('\n'.join(food))
@@ -808,8 +820,9 @@ async def iberia_add(message: types.Message, state: FSMContext):
     data = await state.get_data()
     menu = data['menu']
     foods = {}
+    print(menu)
     for food_price in menu:
-        foods[food_price.split(' - ')[0].capitalize().strip()] = float(food_price.split(' - ')[1])
+        foods[food_price.split(' - ')[0].capitalize().strip()] = float(food_price.split(' - ')[-1])
     # Проверка
     await state.update_data(foods=foods)
     food = [name.strip().capitalize() for name in message.text.split(',')]
@@ -828,6 +841,10 @@ async def iberia_add(message: types.Message, state: FSMContext):
 @dp.message_handler(state=Iberia.price)
 async def iberia_price(message: types.Message, state: FSMContext):
     try:
+        if message.text.lower() == 'назад':
+            await message.answer("Возвращаемся назад")
+            task = asyncio.create_task(iberia(message, state))
+            await task
         col = [int(name.strip()) for name in message.text.split(',')]
         if any([name > 20 for name in col]):
             await message.answer("Слишком большое количество блюд. Максимальное количество - 20")
