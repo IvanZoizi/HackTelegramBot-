@@ -182,7 +182,10 @@ async def time_step(message: types.Message, state: FSMContext):
         cur.execute("""INSERT INTO order_user (user_id) VALUES (%s)""", (user,))
         con.commit()
         cur.execute("""SELECT (id) FROM order_user WHERE user_id = %s""", (user,))
-        order = cur.fetchone()
+
+        order = cur.fetchall()
+        order = order[-1][0]
+        print(order)
         # """        await state.update_data(order=order)"""
         for id in names:
             await bot.send_message(id[0], f"Заказ. Ресторан - {data['RESTORAN']}. Время - {data['TIME']}."
