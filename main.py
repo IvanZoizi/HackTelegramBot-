@@ -376,6 +376,7 @@ async def pizza_result(message: types.Message, state: FSMContext):
             csv = pd.concat([csv, pd.DataFrame(dic, index=[0])], ignore_index=True, axis=0)
             csv = csv[['name', 'order', 'price', 'restoran']]
             csv.to_csv('order.csv')
+            await state.finish()
         elif message.text.capitalize() == 'Телеграмм':
             PRICE = types.LabeledPrice(label=f"{data['RESTORAN']}",
                                        amount=int(data['price'] * 100))
@@ -389,6 +390,7 @@ async def pizza_result(message: types.Message, state: FSMContext):
                                    prices=[PRICE],
                                    start_parameter='pay-order',
                                    payload="test-invoice-payload")
+            await state.finish()
 
 
 # pre checkout  (must be answered in 10 seconds)
@@ -458,6 +460,7 @@ async def fank_result(message: types.Message, state: FSMContext):
             cur.execute("""INSERT INTO orderrespose (id_order, id_user, price, order_text) VALUES (%s, %s, %s, %s)""",
                         (data['order'], user, data['price'], data['food']))
             con.commit()
+            await state.finish()
         elif message.text.capitalize() == 'Телеграмм':
             data = await state.get_data()
             PRICE = types.LabeledPrice(label=f"{data['RESTORAN']}",
@@ -478,6 +481,7 @@ async def fank_result(message: types.Message, state: FSMContext):
             cur.execute("""INSERT INTO orderrespose (id_order, id_user, price, order_text) VALUES (%s, %s, %s, %s)""",
                         (data['order'], user, data['price'], data['food']))
             con.commit()
+            await state.finish()
 
 
 @dp.message_handler(state=Fank.menu)
@@ -603,6 +607,7 @@ async def limonad_result(message: types.Message, state: FSMContext):
             cur.execute("""INSERT INTO orderrespose (id_order, id_user, price, order_text) VALUES (%s, %s, %s, %s)""",
                         (data['order'], user, data['price'], data['food']))
             con.commit()
+            await state.finish()
         elif message.text.capitalize() == 'Телеграмм':
             data = await state.get_data()
             PRICE = types.LabeledPrice(label=f"{data['RESTORAN']}",
@@ -623,6 +628,7 @@ async def limonad_result(message: types.Message, state: FSMContext):
             cur.execute("""INSERT INTO orderrespose (id_order, id_user, price, order_text) VALUES (%s, %s, %s, %s)""",
                         (data['order'], user, data['price'], data['food']))
             con.commit()
+            await state.finish()
 
 
 @dp.message_handler(state=Limonad.menu)
@@ -749,6 +755,7 @@ async def iberia_result(message: types.Message, state: FSMContext):
             cur.execute("""INSERT INTO orderrespose (id_order, id_user, price, order_text) VALUES (%s, %s, %s, %s)""",
                         (data['order'], user, data['price'], data['food']))
             con.commit()
+            await state.finish()
         elif message.text.capitalize() == 'Телеграмм':
             data = await state.get_data()
             PRICE = types.LabeledPrice(label=f"{data['RESTORAN']}",
@@ -769,6 +776,7 @@ async def iberia_result(message: types.Message, state: FSMContext):
             cur.execute("""INSERT INTO orderrespose (id_order, id_user, price, order_text) VALUES (%s, %s, %s, %s)""",
                         (data['order'], user, data['price'], data['food']))
             con.commit()
+            await state.finish()
 
 
 @dp.message_handler(state=Iberia.menu)
