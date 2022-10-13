@@ -343,7 +343,7 @@ async def pizza_price(message: types.Message, state: FSMContext):
             await task
         col = [int(name.strip()) for name in message.text.split(',')]
         if any([name > 10 for name in col]):
-            await message.answer("Слишком большое количество блюд. Максимальное количество - 20")
+            await message.answer("Слишком большое количество блюд. Максимальное количество - 10")
             await message.answer("Введите количество")
         else:
             data = await state.get_data()
@@ -558,7 +558,7 @@ async def fank_price(message: types.Message, state: FSMContext):
             await task
         col = [int(name.strip()) for name in message.text.split(',')]
         if any([name > 10 for name in col]):
-            await message.answer("Слишком большое количество блюд. Максимальное количество - 20")
+            await message.answer("Слишком большое количество блюд. Максимальное количество - 10")
             await message.answer("Введите количество")
         else:
             data = await state.get_data()
@@ -711,7 +711,7 @@ async def limonad_price(message: types.Message, state: FSMContext):
             await task
         col = [int(name.strip()) for name in message.text.split(',')]
         if any([name > 10 for name in col]):
-            await message.answer("Слишком большое количество блюд. Максимальное количество - 20")
+            await message.answer("Слишком большое количество блюд. Максимальное количество - 10")
             await message.answer("Введите количество")
         else:
             data = await state.get_data()
@@ -866,7 +866,7 @@ async def iberia_price(message: types.Message, state: FSMContext):
             await task
         col = [int(name.strip()) for name in message.text.split(',')]
         if any([name > 10 for name in col]):
-            await message.answer("Слишком большое количество блюд. Максимальное количество - 20")
+            await message.answer("Слишком большое количество блюд. Максимальное количество - 10")
             await message.answer("Введите количество")
         else:
             data = await state.get_data()
