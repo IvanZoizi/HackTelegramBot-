@@ -342,7 +342,7 @@ async def pizza_price(message: types.Message, state: FSMContext):
             task = asyncio.create_task(pizza(message, state))
             await task
         col = [int(name.strip()) for name in message.text.split(',')]
-        if any([name > 20 for name in col]):
+        if any([name > 10 for name in col]):
             await message.answer("Слишком большое количество блюд. Максимальное количество - 20")
             await message.answer("Введите количество")
         else:
@@ -557,7 +557,7 @@ async def fank_price(message: types.Message, state: FSMContext):
             task = asyncio.create_task(fank(message, state))
             await task
         col = [int(name.strip()) for name in message.text.split(',')]
-        if any([name > 20 for name in col]):
+        if any([name > 10 for name in col]):
             await message.answer("Слишком большое количество блюд. Максимальное количество - 20")
             await message.answer("Введите количество")
         else:
@@ -710,7 +710,7 @@ async def limonad_price(message: types.Message, state: FSMContext):
             task = asyncio.create_task(limonad(message, state))
             await task
         col = [int(name.strip()) for name in message.text.split(',')]
-        if any([name > 20 for name in col]):
+        if any([name > 10 for name in col]):
             await message.answer("Слишком большое количество блюд. Максимальное количество - 20")
             await message.answer("Введите количество")
         else:
@@ -865,7 +865,7 @@ async def iberia_price(message: types.Message, state: FSMContext):
             task = asyncio.create_task(iberia(message, state))
             await task
         col = [int(name.strip()) for name in message.text.split(',')]
-        if any([name > 20 for name in col]):
+        if any([name > 10 for name in col]):
             await message.answer("Слишком большое количество блюд. Максимальное количество - 20")
             await message.answer("Введите количество")
         else:
